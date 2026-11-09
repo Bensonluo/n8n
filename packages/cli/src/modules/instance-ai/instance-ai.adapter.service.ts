@@ -2182,6 +2182,7 @@ export class InstanceAiAdapterService {
 
 				const updated = await workflowService.update(user, updateData, workflowId, {
 					source: 'n8n-ai',
+					restoredVersionSettings: version.settings,
 				});
 
 				await notifyWorkflowUpdated(workflowId);
