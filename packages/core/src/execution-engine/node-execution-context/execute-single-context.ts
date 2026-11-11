@@ -11,6 +11,7 @@ import type {
 	WorkflowExecuteMode,
 	ITaskDataConnections,
 	IExecuteData,
+	IGetDecryptedCredentialsOptions,
 } from 'n8n-workflow';
 import { UnexpectedError, NodeConnectionTypes } from 'n8n-workflow';
 
@@ -39,6 +40,7 @@ export class ExecuteSingleContext extends BaseExecuteContext implements IExecute
 		private readonly itemIndex: number,
 		executeData: IExecuteData,
 		abortSignal?: AbortSignal,
+		credentialOptions?: IGetDecryptedCredentialsOptions,
 	) {
 		super(
 			workflow,
@@ -51,6 +53,7 @@ export class ExecuteSingleContext extends BaseExecuteContext implements IExecute
 			inputData,
 			executeData,
 			abortSignal,
+			credentialOptions,
 		);
 
 		this.helpers = {
