@@ -1,3 +1,4 @@
+import { findGraphReasons } from './graph-rules';
 import { findSettingsReasons } from './settings-rules';
 import { findTriggerIdentityReasons } from './trigger-identity-rule';
 import type { EngineV2Eligibility, EngineV2EligibilityWorkflow } from './types';
@@ -14,6 +15,7 @@ export function checkEngineV2Eligibility(
 	const reasons = [
 		...findSettingsReasons(workflow.settings ?? {}),
 		...findTriggerIdentityReasons(workflow.nodes),
+		...findGraphReasons(workflow.nodes, workflow.connections),
 	];
 	return { eligible: reasons.every((reason) => reason.severity !== 'blocking'), reasons };
 }
