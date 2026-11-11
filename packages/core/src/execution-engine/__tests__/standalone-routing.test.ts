@@ -76,6 +76,9 @@ const context = {
 const run = async (routing: INodePropertyRouting, extraKeys?: IWorkflowDataProxyAdditionalKeys) =>
 	await runStandaloneRouting(context, nodeType, routing, extraKeys);
 
+/** The position of the options argument of `ICredentialsHelper.getDecrypted`. */
+const CREDENTIAL_OPTIONS_ARG = 7;
+
 const respond = (body: IDataObject) =>
 	httpRequest.mockResolvedValueOnce({ body, headers: {}, statusCode: 200 });
 
@@ -222,7 +225,7 @@ describe('runStandaloneRouting', () => {
 			// Once in RoutingNode.prepareCredentials and once in the request helper.
 			expect(credentialsHelper.getDecrypted).toHaveBeenCalledTimes(2);
 			for (const call of credentialsHelper.getDecrypted.mock.calls) {
-				expect(call[7]).toEqual({ credentialUsage: 'trigger' });
+				expect(call[CREDENTIAL_OPTIONS_ARG]).toEqual({ credentialUsage: 'trigger' });
 			}
 		});
 
@@ -235,7 +238,7 @@ describe('runStandaloneRouting', () => {
 
 			expect(credentialsHelper.getDecrypted).toHaveBeenCalled();
 			for (const call of credentialsHelper.getDecrypted.mock.calls) {
-				expect(call[7]).toBeUndefined();
+				expect(call[CREDENTIAL_OPTIONS_ARG]).toBeUndefined();
 			}
 		});
 	});
