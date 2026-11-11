@@ -52,7 +52,7 @@ test.describe(
 		}) => {
 			const base = `/${nanoid()}`;
 			await mockRegistryRoute(services.proxy, 'GET', `${base}/hooks`, { hooks: [] });
-			await mockRegistryRoute(services.proxy, 'POST', `${base}/hooks`, { id: 'h1' });
+			await mockRegistryRoute(services.proxy, 'POST', `${base}/hooks`, { id: 'h1', secret: 's1' });
 			await mockRegistryRoute(services.proxy, 'DELETE', `${base}/hooks/h1`, {});
 
 			const { workflowId, createdWorkflow } = await api.workflows.createWorkflowFromDefinition(
@@ -60,10 +60,10 @@ test.describe(
 			);
 			await api.workflows.activate(workflowId, createdWorkflow.versionId!);
 
-			// checkExists finds no hook, so create registers one and stores its ID.
+			// checkExists finds no hook, so create registers one and stores its ID and secret.
 			await expect
 				.poll(async () => await readTriggerStaticData(api, workflowId))
-				.toEqual({ webhookId: 'h1' });
+				.toEqual({ webhookId: 'h1', webhookSecret: 's1' });
 			expect(await services.proxy.wasRequestMade({ method: 'GET', path: `${base}/hooks` })).toBe(
 				true,
 			);
@@ -87,22 +87,12 @@ test.describe(
 						.digest('hex'),
 				});
 
-			// No secret is stored before the handshake, so a delivery fails the check.
-			expect((await deliverSigned({ event: 'created', data: { id: 0 } }, '')).status()).toBe(401);
-
-			// A handshake echoes the secret as plain text, stores it and starts no execution.
+			// A handshake echoes the secret as plain text and starts no execution.
 			const handshake = await deliver({}, { 'X-Hook-Secret': 's1' });
 			expect(handshake.status()).toBe(200);
 			expect(await handshake.text()).toBe('s1');
 			expect(handshake.headers()['content-type']).toContain('text/plain');
 			expect(handshake.headers()['x-hook-secret']).toBe('s1');
-			// The server saves the secret before it replies.
-			expect(await readTriggerStaticData(api, workflowId)).toEqual({
-				webhookId: 'h1',
-				hookSecret: 's1',
-			});
-			// A later handshake gets a reply but does not replace the stored secret.
-			expect((await deliver({}, { 'X-Hook-Secret': 's2' })).status()).toBe(200);
 
 			// A delivery without a valid signature gets 401 and starts no execution.
 			expect((await deliver({ event: 'created', data: { id: 0 } })).status()).toBe(401);
@@ -128,10 +118,6 @@ test.describe(
 			expect(runData[TRIGGER_NODE_NAME][0].data?.main[0]?.map((item) => item.json.body)).toEqual([
 				{ id: 1 },
 			]);
-			expect(await readTriggerStaticData(api, workflowId)).toEqual({
-				webhookId: 'h1',
-				hookSecret: 's1',
-			});
 
 			await api.workflows.deactivate(workflowId);
 

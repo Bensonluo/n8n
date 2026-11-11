@@ -3,7 +3,6 @@ import { mockInstance } from '@test/utils';
 import type { Request, Response } from 'express';
 import { createHmac } from 'node:crypto';
 import type {
-	DeclarativeWebhookHandshake,
 	DeclarativeWebhookVerification,
 	IDataObject,
 	IDeclarativeWebhookTrigger,
@@ -592,47 +591,6 @@ describe('createDeclarativeWebhookMethods', () => {
 			);
 		});
 
-		test('a new registration clears the handshake.store keys', async () => {
-			const trigger: IDeclarativeWebhookTrigger = {
-				type: 'webhook',
-				lifecycle: { create: registryTrigger.lifecycle.create },
-				handler: { handshake: { store: { hookSecret: '={{ "s" }}' } } },
-			};
-			const { checkExists, create, staticData } = setup(trigger);
-			Object.assign(staticData(), { hookSecret: 'old', keep: 'me' });
-			respond({ id: 7 });
-
-			expect(await checkExists()).toBe(false);
-			await create();
-			expect(staticData()).toEqual({ webhookId: 7, keep: 'me' });
-		});
-
-		test('a hook that matchOn finds keeps the handshake.store keys', async () => {
-			const trigger: IDeclarativeWebhookTrigger = {
-				...registryTrigger,
-				handler: { handshake: { store: { hookSecret: '={{ "s" }}' } } },
-			};
-			const { checkExists, webhookUrl, staticData } = setup(trigger);
-			staticData().hookSecret = 'old';
-			respond({ hooks: [{ id: 7, target_url: webhookUrl }] });
-
-			expect(await checkExists()).toBe(true);
-			expect(staticData()).toEqual({ webhookId: 7, hookSecret: 'old' });
-		});
-
-		test('clears the handshake.store keys', async () => {
-			const trigger: IDeclarativeWebhookTrigger = {
-				...registryTrigger,
-				handler: { handshake: { store: { hookSecret: '={{ "s" }}' } } },
-			};
-			const { delete: del, staticData } = setup(trigger);
-			Object.assign(staticData(), { webhookId: 42, hookSecret: 's', keep: 'me' });
-			respond({});
-
-			expect(await del()).toBe(true);
-			expect(staticData()).toEqual({ keep: 'me' });
-		});
-
 		test('clears managedKeys instead of the create.store keys', async () => {
 			const trigger: IDeclarativeWebhookTrigger = {
 				...registryTrigger,
@@ -831,67 +789,18 @@ describe('createDeclarativeWebhook', () => {
 
 	describe('handshake', () => {
 		const secretHeader = '={{ $webhookRequest.headers["x-hook-secret"] }}';
-		const handshake = {
-			when: '={{ $webhookRequest.headers["x-hook-secret"] !== undefined }}',
-			store: { hookSecret: secretHeader },
-		};
+		const handshake = { when: '={{ $webhookRequest.headers["x-hook-secret"] !== undefined }}' };
 
-		/** Runs a handshake with the secret header and returns the result and the node static data. */
-		async function runHandshake(
-			config: DeclarativeWebhookHandshake,
-			nodeData: IDataObject = {},
-			{ secret = 's1', webhookName = 'default' } = {},
-		) {
-			const staticData: IDataObject = { 'node:Hook': nodeData };
+		test('replies OK, starts no workflow and writes no static data', async () => {
+			const nodeData: IDataObject = {};
 			const run = webhookSetup(
-				{ handshake: config },
+				{ handshake },
 				{ event: 'created' },
-				{ headers: { 'x-hook-secret': secret }, staticData, webhookName },
-			);
-			return { result: await run(), nodeData, staticData };
-		}
-
-		test('writes the store, replies OK and starts no workflow', async () => {
-			const { result, nodeData, staticData } = await runHandshake(handshake);
-
-			expect(result).toStrictEqual({ webhookResponse: 'OK' });
-			expect(nodeData).toEqual({ hookSecret: 's1' });
-			// The server saves the static data only when it is marked as changed.
-			expect(staticData.__dataChanged).toBe(true);
-		});
-
-		test('keeps a stored value', async () => {
-			const { result, nodeData } = await runHandshake(
-				handshake,
-				{ hookSecret: 's1' },
-				{
-					secret: 's2',
-				},
+				{ headers: { 'x-hook-secret': 's1' }, staticData: { 'node:Hook': nodeData } },
 			);
 
-			expect(result).toStrictEqual({ webhookResponse: 'OK' });
-			expect(nodeData).toEqual({ hookSecret: 's1' });
-		});
-
-		test('replaces a stored empty string', async () => {
-			const { nodeData } = await runHandshake(handshake, { hookSecret: '' });
-
-			expect(nodeData).toEqual({ hookSecret: 's1' });
-		});
-
-		test('writes only the keys that are empty', async () => {
-			const { nodeData } = await runHandshake(
-				{ ...handshake, store: { hookSecret: secretHeader, other: secretHeader } },
-				{ hookSecret: 'old' },
-			);
-
-			expect(nodeData).toEqual({ hookSecret: 'old', other: 's1' });
-		});
-
-		test('does not mark the static data as changed when it writes nothing', async () => {
-			const { staticData } = await runHandshake(handshake, { hookSecret: 'old' });
-
-			expect(staticData.__dataChanged).toBe(false);
+			expect(await run()).toStrictEqual({ webhookResponse: 'OK' });
+			expect(nodeData).toEqual({});
 		});
 
 		test('emits the body when `when` is falsy', async () => {
@@ -901,7 +810,7 @@ describe('createDeclarativeWebhook', () => {
 		});
 
 		test('does not apply on the default endpoint without `when`', async () => {
-			const run = webhookSetup({ handshake: { store: handshake.store } }, { event: 'created' });
+			const run = webhookSetup({ handshake: { respond: { body: 'x' } } }, { event: 'created' });
 
 			expect(await run()).toEqual({ workflowData: [[{ json: { event: 'created' } }]] });
 		});
@@ -932,44 +841,17 @@ describe('createDeclarativeWebhook', () => {
 			expect(await run()).toStrictEqual({ webhookResponse: 'OK' });
 		});
 
-		test('writes the store on a setup endpoint when `when` is truthy', async () => {
-			const { result, nodeData } = await runHandshake(handshake, {}, { webhookName: 'setup' });
-
-			expect(result).toStrictEqual({ webhookResponse: 'OK' });
-			expect(nodeData).toEqual({ hookSecret: 's1' });
-		});
-
-		test('keeps a stored value on a setup endpoint', async () => {
-			const { nodeData } = await runHandshake(
-				handshake,
-				{ hookSecret: 's1' },
-				{
-					secret: 's2',
-					webhookName: 'setup',
-				},
-			);
-
-			expect(nodeData).toEqual({ hookSecret: 's1' });
-		});
-
-		test('replies 401 and writes nothing on a setup endpoint when `when` is falsy', async () => {
+		test('replies 401 on a setup endpoint when `when` is falsy', async () => {
 			const res = mockResponse();
-			const nodeData: IDataObject = {};
 			const run = webhookSetup(
 				{ handshake: { ...handshake, when: '={{ false }}' } },
 				{},
-				{
-					headers: { 'x-hook-secret': 's1' },
-					webhookName: 'setup',
-					staticData: { 'node:Hook': nodeData },
-					res,
-				},
+				{ headers: { 'x-hook-secret': 's1' }, webhookName: 'setup', res },
 			);
 
 			expect(await run()).toStrictEqual({ noWebhookResponse: true });
 			expect(res.status).toHaveBeenCalledWith(401);
 			expect(res.send).toHaveBeenCalledWith('Unauthorized');
-			expect(nodeData).toEqual({});
 		});
 
 		describe('respond', () => {
@@ -1069,16 +951,14 @@ describe('createDeclarativeWebhook', () => {
 			});
 		});
 
-		test('stores and sends request values in one pass', async () => {
-			const nodeData: IDataObject = {};
+		test('sends request values in one pass', async () => {
 			const run = webhookSetup(
 				{ handshake: { ...handshake, respond: { body: secretHeader } } },
 				{},
-				{ headers: { 'x-hook-secret': '={{ 1 + 1 }}' }, staticData: { 'node:Hook': nodeData } },
+				{ headers: { 'x-hook-secret': '={{ 1 + 1 }}' } },
 			);
 
 			expect(await run()).toStrictEqual({ webhookResponse: '={{ 1 + 1 }}' });
-			expect(nodeData).toEqual({ hookSecret: '={{ 1 + 1 }}' });
 		});
 	});
 

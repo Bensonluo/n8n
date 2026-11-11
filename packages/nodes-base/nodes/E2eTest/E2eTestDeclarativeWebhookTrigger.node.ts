@@ -63,7 +63,7 @@ export class E2eTestDeclarativeWebhookTrigger implements INodeType {
 							body: { target_url: '={{ $webhookUrl }}', events: '={{ $parameter.events }}' },
 						},
 					},
-					store: { webhookId: '={{ $response.id }}' },
+					store: { webhookId: '={{ $response.id }}', webhookSecret: '={{ $response.secret }}' },
 				},
 				delete: {
 					routing: {
@@ -77,7 +77,6 @@ export class E2eTestDeclarativeWebhookTrigger implements INodeType {
 			handler: {
 				handshake: {
 					when: '={{ $webhookRequest.headers["x-hook-secret"] !== undefined }}',
-					store: { hookSecret: '={{ $webhookRequest.headers["x-hook-secret"] }}' },
 					respond: {
 						body: '={{ $webhookRequest.headers["x-hook-secret"] }}',
 						contentType: 'text/plain',
@@ -87,7 +86,7 @@ export class E2eTestDeclarativeWebhookTrigger implements INodeType {
 				verification: {
 					algorithm: 'hmac-sha256',
 					signatureHeader: 'x-hook-signature',
-					secret: '={{ $staticData.hookSecret }}',
+					secret: '={{ $staticData.webhookSecret }}',
 				},
 				ping: { when: '={{ $webhookRequest.body.type === "ping" }}', response: 'pong' },
 				filter: {
