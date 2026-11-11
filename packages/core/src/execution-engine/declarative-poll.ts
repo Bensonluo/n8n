@@ -88,7 +88,7 @@ export function createDeclarativePoll(
 			return null;
 		}
 
-		// Load credentials like PollContext does, so a manual run resolves end-user credentials.
+		// Load credentials as a trigger, like PollContext. A manual run then gets an actionable error for an end-user credential.
 		const fetched = await runStandaloneRouting(
 			this,
 			nodeType,
