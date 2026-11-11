@@ -341,7 +341,11 @@ export const buildScanConfig = async (): Promise<Linter.Config[]> => {
 		{ plugins: { 'n8n-nodes-base': n8nNodesPlugin } },
 		{
 			files: ['package.json'],
-			rules: { ...n8nNodesPlugin.configs.community.rules },
+			rules: {
+				...n8nNodesPlugin.configs.community.rules,
+				// Rejects string versions such as "1.1". @n8n/community-nodes/n8n-object-validation checks this field
+				'n8n-nodes-base/community-package-json-n8n-api-version-not-number': 'off',
+			},
 		},
 		{
 			files: ['**/credentials/**/*.ts'],

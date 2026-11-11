@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import { AxiosError, type AxiosResponse } from 'axios';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
 	analyzePackage,
@@ -17,6 +17,9 @@ import {
 	resolveVersion,
 	SOURCE_FILE_PATTERNS,
 } from './scanner.js';
+
+// eslint-plugin-n8n-nodes-base reads NODE_ENV on load. In a test run, it ignores the real file names.
+vi.hoisted(() => vi.stubEnv('NODE_ENV', 'development'));
 
 /**
  * Build a temporary package directory on disk so we can hand it to
@@ -80,6 +83,7 @@ describe('buildScanConfig', () => {
 			'n8n-nodes-base/node-class-description-inputs-wrong-regular-node',
 			'n8n-nodes-base/node-class-description-outputs-wrong',
 			'n8n-nodes-base/node-param-type-options-max-value-present',
+			'n8n-nodes-base/community-package-json-n8n-api-version-not-number',
 		]) {
 			expect(rules[rule]).toBe('off');
 		}
@@ -299,6 +303,47 @@ describe('analyzePackage', () => {
 		const result = await analyzePackage(fixtureDir);
 
 		expect(result.passed).toBe(true);
+	});
+
+	it('accepts a "<major>.<minor>" string as n8nNodesApiVersion', async () => {
+		fixtureDir = makeFixturePackage({
+			'package.json': {
+				name: 'n8n-nodes-fixture',
+				version: '1.0.0',
+				description: 'A fixture community node package',
+				license: 'MIT',
+				author: { name: 'Test Author', email: 'test@example.com' },
+				keywords: ['n8n-community-node-package'],
+				peerDependencies: { 'n8n-workflow': '*' },
+				n8n: { n8nNodesApiVersion: '1.1', nodes: ['dist/nodes/Foo/Foo.node.js'] },
+			},
+			'index.js': 'module.exports = {};\n',
+		});
+
+		const result = await analyzePackage(fixtureDir);
+
+		expect(result.passed).toBe(true);
+	});
+
+	it('flags a malformed n8nNodesApiVersion', async () => {
+		fixtureDir = makeFixturePackage({
+			'package.json': {
+				name: 'n8n-nodes-fixture',
+				version: '1.0.0',
+				description: 'A fixture community node package',
+				license: 'MIT',
+				author: { name: 'Test Author', email: 'test@example.com' },
+				keywords: ['n8n-community-node-package'],
+				peerDependencies: { 'n8n-workflow': '*' },
+				n8n: { n8nNodesApiVersion: 1.1, nodes: ['dist/nodes/Foo/Foo.node.js'] },
+			},
+			'index.js': 'module.exports = {};\n',
+		});
+
+		const result = await analyzePackage(fixtureDir);
+
+		expect(result.passed).toBe(false);
+		expect(result.details).toContain('n8n-object-validation');
 	});
 
 	it('flags forbidden lifecycle scripts in package.json', async () => {
