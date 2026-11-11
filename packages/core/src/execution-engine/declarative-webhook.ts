@@ -331,8 +331,9 @@ function respondToHandshake(
 	const resolved = body === undefined ? 'OK' : resolve(context, body, extraKeys);
 	// With `undefined`, the server would send its default message.
 	const value = resolved === undefined ? '' : resolved;
-	// The server sets the status of the route, so another status needs a direct reply.
 	if (statusCode === 200) return { webhookResponse: value };
+
+	// The server sets the status of the route, so another status needs a direct reply.
 	res.status(statusCode);
 	// The same rule as the server reply: a string is sent as it is, other values as JSON.
 	if (typeof value === 'string') res.send(value);
