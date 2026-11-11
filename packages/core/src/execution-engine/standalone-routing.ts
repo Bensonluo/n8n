@@ -1,5 +1,6 @@
 import { createRunExecutionData } from 'n8n-workflow';
 import type {
+	IGetDecryptedCredentialsOptions,
 	INodeExecutionData,
 	INodePropertyRouting,
 	INodeType,
@@ -21,6 +22,7 @@ export async function runStandaloneRouting(
 	nodeType: INodeType,
 	routing: INodePropertyRouting,
 	extraKeys: IWorkflowDataProxyAdditionalKeys = {},
+	credentialOptions?: IGetDecryptedCredentialsOptions,
 ): Promise<INodeExecutionData[]> {
 	const { workflow, node, additionalData, mode } = context;
 	const executeContext = new ExecuteContext(
@@ -34,6 +36,9 @@ export async function runStandaloneRouting(
 		{ main: [[{ json: {} }]] },
 		{ node, data: {}, source: null },
 		[],
+		undefined,
+		undefined,
+		credentialOptions,
 	);
 	const routingNodeType: INodeType = {
 		...nodeType,

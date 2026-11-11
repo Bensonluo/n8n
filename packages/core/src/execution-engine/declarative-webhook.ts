@@ -40,18 +40,14 @@ const LOCALHOST_NAMES = ['localhost', '127.0.0.1', '[::1]'];
 // A node with a function `create` has no `store`, so it lists its keys in `managedKeys`.
 function clearManagedKeys(trigger: IDeclarativeWebhookTrigger, staticData: IDataObject) {
 	const { create } = trigger.lifecycle;
-	const keys = trigger.managedKeys ?? [
-		...(typeof create === 'function' ? [] : Object.keys(create.store ?? {})),
-		...Object.keys(trigger.handler?.handshake?.store ?? {}),
-	];
+	const keys =
+		trigger.managedKeys ?? (typeof create === 'function' ? [] : Object.keys(create.store ?? {}));
 	for (const key of keys) delete staticData[key];
 }
 
-type ResolveContext = Pick<NodeExecutionContext, 'workflow' | 'node' | 'mode'>;
-
 // One pass only: response and request values that start with "=" stay literal strings.
 const resolve = (
-	context: ResolveContext,
+	context: Pick<NodeExecutionContext, 'workflow' | 'node' | 'mode'>,
 	value: string,
 	extraKeys: IWorkflowDataProxyAdditionalKeys,
 ) =>
@@ -68,7 +64,7 @@ const resolve = (
 
 /** Writes the `store` values to the static data. Returns the keys that resolved to `undefined`. */
 function applyStore(
-	context: ResolveContext,
+	context: HookContext,
 	store: Record<string, string> | undefined,
 	extraKeys: IWorkflowDataProxyAdditionalKeys,
 	staticData: IDataObject,
@@ -167,7 +163,6 @@ function generateSecret({ type, length, prefix = '' }: DeclarativeSecretGenerato
 
 function createCreate(
 	nodeType: INodeType,
-	trigger: IDeclarativeWebhookTrigger,
 	config: DeclarativeWebhookCreate,
 	deleteHook?: HookMethod,
 ): WebhookMethods['create'] {
@@ -193,9 +188,6 @@ function createCreate(
 			$generated[name] = generateSecret(generator);
 		}
 		const requestKeys = { ...extraKeys, $generated };
-
-		// A new hook gets a new handshake. An old value would block it, because a handshake fills only empty keys.
-		for (const key of Object.keys(trigger.handler?.handshake?.store ?? {})) delete staticData[key];
 
 		const [response] = await runStandaloneRouting(context, nodeType, config.routing, requestKeys);
 		const $response = response?.json ?? {};
@@ -256,8 +248,7 @@ export function createDeclarativeWebhookMethods(
 					async function (this: IHookFunctions) {
 						return await registerAgain(this, deleteHook);
 					}),
-		create:
-			typeof create === 'object' ? createCreate(nodeType, trigger, create, deleteHook) : create,
+		create: typeof create === 'object' ? createCreate(nodeType, create, deleteHook) : create,
 		delete: deleteHook ?? (typeof del === 'function' ? del : async () => true),
 	};
 }
@@ -319,17 +310,12 @@ async function shapeItems(
 	return items;
 }
 
-/** Writes `store`, sets the configured reply and starts no workflow. */
+/** Sends the configured reply and starts no workflow. */
 function respondToHandshake(
 	context: WebhookContext,
 	handshake: DeclarativeWebhookHandshake,
 	extraKeys: IWorkflowDataProxyAdditionalKeys,
 ): IWebhookResponseData {
-	const staticData = context.getWorkflowStaticData('node');
-	// Fill only empty keys, so a later handshake does not replace a stored value. Concurrent requests are not atomic: the last save wins.
-	const store = Object.entries(handshake.store ?? {}).filter(([key]) => !staticData[key]);
-	applyStore(context, Object.fromEntries(store), extraKeys, staticData);
-
 	const { body, statusCode = 200, contentType, headers = {} } = handshake.respond ?? {};
 	const res = context.getResponseObject();
 	for (const [name, value] of Object.entries(headers)) {
@@ -347,10 +333,8 @@ function respondToHandshake(
 	const resolved = body === undefined ? 'OK' : resolve(context, body, extraKeys);
 	// With `undefined`, the server would send its default message.
 	const value = resolved === undefined ? '' : resolved;
-	// The server replies after it saves the static data, so the vendor cannot send a delivery before the value is stored.
-	if (statusCode === 200) return { webhookResponse: value };
-
 	// The server sets the status of the route, so another status needs a direct reply.
+	if (statusCode === 200) return { webhookResponse: value };
 	res.status(statusCode);
 	// The same rule as the server reply: a string is sent as it is, other values as JSON.
 	if (typeof value === 'string') res.send(value);
@@ -416,7 +400,6 @@ async function verifyDelivery(
 	}
 	if (secret === undefined || secret === null || secret === '') {
 		if (config.skipIfNoSecret) return true;
-		// A handshake key stays empty until the vendor sends the handshake.
 		context.logger.warn(
 			`Webhook trigger "${context.node.name}" rejected a delivery because no signature secret is available`,
 			{ workflowId: context.workflow.id },
