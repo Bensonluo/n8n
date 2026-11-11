@@ -87,12 +87,16 @@ test.describe(
 						.digest('hex'),
 				});
 
-			// A handshake echoes the secret as plain text and starts no execution.
-			const handshake = await deliver({}, { 'X-Hook-Secret': 's1' });
+			// A handshake echoes its value as plain text, writes no static data and starts no execution.
+			const handshake = await deliver({}, { 'X-Hook-Secret': 'challenge-1' });
 			expect(handshake.status()).toBe(200);
-			expect(await handshake.text()).toBe('s1');
+			expect(await handshake.text()).toBe('challenge-1');
 			expect(handshake.headers()['content-type']).toContain('text/plain');
-			expect(handshake.headers()['x-hook-secret']).toBe('s1');
+			expect(handshake.headers()['x-hook-secret']).toBe('challenge-1');
+			expect(await readTriggerStaticData(api, workflowId)).toEqual({
+				webhookId: 'h1',
+				webhookSecret: 's1',
+			});
 
 			// A delivery without a valid signature gets 401 and starts no execution.
 			expect((await deliver({ event: 'created', data: { id: 0 } })).status()).toBe(401);
