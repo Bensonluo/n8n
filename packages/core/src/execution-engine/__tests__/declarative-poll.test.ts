@@ -1,6 +1,8 @@
 import type {
+	ICredentialsHelper,
 	IDataObject,
 	IDeclarativePollingTrigger,
+	IExecuteSingleFunctions,
 	IHttpRequestOptions,
 	INode,
 	INodeExecutionData,
@@ -17,11 +19,22 @@ import { createDeclarativePoll, DECLARATIVE_CURSOR_KEY } from '../declarative-po
 import { PollContext } from '../node-execution-context';
 
 const httpRequest = vi.fn<(options: IHttpRequestOptions) => Promise<unknown>>();
+const httpRequestWithAuthentication = async function (
+	this: IExecuteSingleFunctions,
+	credentialType: string,
+	options: IHttpRequestOptions,
+) {
+	await this.getCredentials(credentialType);
+	return await httpRequest(options);
+};
 
 vi.mock('../node-execution-context/utils/request-helper-functions', async (importOriginal) => ({
 	...(await importOriginal<object>()),
-	getRequestHelperFunctions: () => ({ httpRequest }),
+	getRequestHelperFunctions: () => ({ httpRequest, httpRequestWithAuthentication }),
 }));
+
+/** The position of the options argument of `ICredentialsHelper.getDecrypted`. */
+const CREDENTIAL_OPTIONS_ARG = 7;
 
 const makeNodeType = (trigger: IDeclarativePollingTrigger): INodeType => ({
 	description: {
@@ -93,6 +106,53 @@ const respond = (items: IDataObject[]) =>
 beforeEach(() => httpRequest.mockReset());
 
 describe('createDeclarativePoll', () => {
+	test.each<WorkflowExecuteMode>(['trigger', 'manual'])(
+		'loads credentials as a trigger in %s mode',
+		async (mode) => {
+			const nodeType = makeNodeType(idTrigger);
+			nodeType.description.credentials = [{ name: 'testApi', required: true }];
+			const node: INode = {
+				id: 'n1',
+				name: 'Poll',
+				type: 'testPoll',
+				typeVersion: 1,
+				position: [0, 0],
+				parameters: {},
+				credentials: { testApi: { id: 'c1', name: 'Test' } },
+			};
+			const workflow = new Workflow({
+				id: 'w1',
+				nodes: [node],
+				connections: {},
+				active: true,
+				nodeTypes: mock<INodeTypes>({ getByNameAndVersion: () => nodeType }),
+			});
+			const credentialsHelper = mock<ICredentialsHelper>();
+			credentialsHelper.getDecrypted.mockResolvedValue({ apiKey: 'k' });
+			credentialsHelper.isCredentialUsableByNode.mockReturnValue(true);
+			const context = new PollContext(
+				workflow,
+				node,
+				mock<IWorkflowExecuteAdditionalData>({
+					executionId: 'e1',
+					webhookWaitingBaseUrl: 'http://localhost:5678/webhook-waiting',
+					formWaitingBaseUrl: 'http://localhost:5678/form-waiting',
+					credentialsHelper,
+				}),
+				mode,
+				'init',
+			);
+			respond([{ id: 1 }]);
+
+			await createDeclarativePoll(nodeType, idTrigger).call(context);
+
+			expect(credentialsHelper.getDecrypted).toHaveBeenCalled();
+			for (const call of credentialsHelper.getDecrypted.mock.calls) {
+				expect(call[CREDENTIAL_OPTIONS_ARG]).toEqual({ credentialUsage: 'trigger' });
+			}
+		},
+	);
+
 	test('id cursor: first run seeds and emits nothing, later runs emit only newer items', async () => {
 		const { run, staticData } = setup(idTrigger);
 
