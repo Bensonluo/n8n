@@ -16,6 +16,7 @@ import type {
 	Workflow,
 	WorkflowExecuteMode,
 	EngineResponse,
+	IGetDecryptedCredentialsOptions,
 } from 'n8n-workflow';
 import { UnexpectedError, UserError, jsonParse, NodeConnectionTypes } from 'n8n-workflow';
 
@@ -64,6 +65,7 @@ export class ExecuteContext extends BaseExecuteContext implements IExecuteFuncti
 		readonly closeFunctions: CloseFunction[],
 		abortSignal?: AbortSignal,
 		public subNodeExecutionResults?: EngineResponse,
+		credentialOptions?: IGetDecryptedCredentialsOptions,
 	) {
 		super(
 			workflow,
@@ -76,6 +78,7 @@ export class ExecuteContext extends BaseExecuteContext implements IExecuteFuncti
 			inputData,
 			executeData,
 			abortSignal,
+			credentialOptions,
 		);
 
 		this.helpers = {

@@ -1,5 +1,7 @@
 import type {
+	ICredentialsHelper,
 	IDataObject,
+	IExecuteSingleFunctions,
 	IHttpRequestOptions,
 	INode,
 	INodePropertyRouting,
@@ -14,10 +16,18 @@ import { mock } from 'vitest-mock-extended';
 import { runStandaloneRouting } from '../standalone-routing';
 
 const httpRequest = vi.fn<(options: IHttpRequestOptions) => Promise<unknown>>();
+const httpRequestWithAuthentication = async function (
+	this: IExecuteSingleFunctions,
+	credentialType: string,
+	options: IHttpRequestOptions,
+) {
+	await this.getCredentials(credentialType);
+	return await httpRequest(options);
+};
 
 vi.mock('../node-execution-context/utils/request-helper-functions', async (importOriginal) => ({
 	...(await importOriginal<object>()),
-	getRequestHelperFunctions: () => ({ httpRequest }),
+	getRequestHelperFunctions: () => ({ httpRequest, httpRequestWithAuthentication }),
 }));
 
 const nodeType: INodeType = {
@@ -44,6 +54,12 @@ const node: INode = {
 	parameters: {},
 };
 
+const additionalDataFields = {
+	executionId: 'e1',
+	webhookWaitingBaseUrl: 'http://localhost:5678/webhook-waiting',
+	formWaitingBaseUrl: 'http://localhost:5678/form-waiting',
+};
+
 const context = {
 	workflow: new Workflow({
 		id: 'w1',
@@ -53,11 +69,7 @@ const context = {
 		nodeTypes: mock<INodeTypes>({ getByNameAndVersion: () => nodeType }),
 	}),
 	node,
-	additionalData: mock<IWorkflowExecuteAdditionalData>({
-		executionId: 'e1',
-		webhookWaitingBaseUrl: 'http://localhost:5678/webhook-waiting',
-		formWaitingBaseUrl: 'http://localhost:5678/form-waiting',
-	}),
+	additionalData: mock<IWorkflowExecuteAdditionalData>(additionalDataFields),
 	mode: 'trigger' as const,
 };
 
@@ -165,6 +177,66 @@ describe('runStandaloneRouting', () => {
 			await run({ request: { url: '=/v{{ $version }}/items' } }, { $version: 99 });
 
 			expect(httpRequest.mock.lastCall?.[0].url).toBe('/v1/items');
+		});
+	});
+
+	describe('credentials', () => {
+		const credentialNodeType: INodeType = {
+			description: { ...nodeType.description, credentials: [{ name: 'testApi', required: true }] },
+		};
+		const credentialNode: INode = { ...node, credentials: { testApi: { id: 'c1', name: 'Test' } } };
+		const credentialsHelper = mock<ICredentialsHelper>();
+		const credentialContext = {
+			...context,
+			node: credentialNode,
+			workflow: new Workflow({
+				id: 'w1',
+				nodes: [credentialNode],
+				connections: {},
+				active: true,
+				nodeTypes: mock<INodeTypes>({ getByNameAndVersion: () => credentialNodeType }),
+			}),
+			additionalData: mock<IWorkflowExecuteAdditionalData>({
+				...additionalDataFields,
+				credentialsHelper,
+			}),
+		};
+
+		beforeEach(() => {
+			credentialsHelper.getDecrypted.mockReset();
+			credentialsHelper.getDecrypted.mockResolvedValue({ apiKey: 'k' });
+			credentialsHelper.isCredentialUsableByNode.mockReturnValue(true);
+		});
+
+		test('passes the credential options to every credential load', async () => {
+			respond({ id: 1 });
+
+			await runStandaloneRouting(
+				credentialContext,
+				credentialNodeType,
+				{ request: { url: '/items' } },
+				{},
+				{ credentialUsage: 'trigger' },
+			);
+
+			// Once in RoutingNode.prepareCredentials and once in the request helper.
+			expect(credentialsHelper.getDecrypted).toHaveBeenCalledTimes(2);
+			for (const call of credentialsHelper.getDecrypted.mock.calls) {
+				expect(call[7]).toEqual({ credentialUsage: 'trigger' });
+			}
+		});
+
+		test('loads credentials without options by default', async () => {
+			respond({ id: 1 });
+
+			await runStandaloneRouting(credentialContext, credentialNodeType, {
+				request: { url: '/items' },
+			});
+
+			expect(credentialsHelper.getDecrypted).toHaveBeenCalled();
+			for (const call of credentialsHelper.getDecrypted.mock.calls) {
+				expect(call[7]).toBeUndefined();
+			}
 		});
 	});
 });

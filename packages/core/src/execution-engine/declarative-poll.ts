@@ -88,9 +88,14 @@ export function createDeclarativePoll(
 			return null;
 		}
 
-		const fetched = await runStandaloneRouting(this, nodeType, trigger.routing, {
-			$cursor: cursor ?? {},
-		});
+		// Load credentials like PollContext does, so a manual run resolves end-user credentials.
+		const fetched = await runStandaloneRouting(
+			this,
+			nodeType,
+			trigger.routing,
+			{ $cursor: cursor ?? {} },
+			{ credentialUsage: 'trigger' },
+		);
 
 		if (isManual) {
 			// Built-in cursors only filter, so a manual run skips them. A function cursor can shape items.
