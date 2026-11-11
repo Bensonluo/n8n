@@ -3094,7 +3094,7 @@ export interface IDeclarativeWebhookTrigger {
 export interface DeclarativeWebhookHandshake {
 	/** On `default`, a truthy result makes the request a handshake. On `setup`, a falsy result replies 401. */
 	when?: string;
-	/** Do not use `$staticData` here: any request that matches `when` gets this reply. */
+	/** `$staticData` is not available here. */
 	respond?: {
 		/** Default `OK`. */
 		body?: string;
