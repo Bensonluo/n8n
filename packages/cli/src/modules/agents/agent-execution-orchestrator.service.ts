@@ -8,6 +8,7 @@ import type {
 	AgentBackgroundJobSignal,
 	AgentMessageAuthor,
 	AgentChatMessagesResponse,
+	AgentToolGuardrailConfig,
 	BudgetGuardrailConfig,
 	AgentBudgetNotice,
 } from '@n8n/api-types';
@@ -59,6 +60,7 @@ import { AgentSkillRefsService } from './agent-skill-refs.service';
 import { buildAgentConfigurationTelemetry } from './agent-telemetry';
 import { AgentTurnExecutionService, type AgentTurnRequest } from './agent-turn-execution.service';
 import { withBudgetGuardrail } from './budget-guardrail';
+import { withToolGuardrails } from './tool-guardrails';
 import { AgentExecutionRecordingError } from './agent-execution-recording.error';
 import type { AgentChatBridge } from './integrations/agent-chat-bridge';
 import {
@@ -252,6 +254,8 @@ export interface StreamChatResponseConfig extends ChatExecutionInput, ChatExecut
 	toolRegistry: ToolRegistry;
 	/** Saved budget from the reconstructed runtime. Absent when the config has none. */
 	budget?: BudgetGuardrailConfig;
+	/** Saved tool guardrails from the reconstructed runtime. Absent when the config has none. */
+	toolGuardrails?: AgentToolGuardrailConfig[];
 	/** See `AgentRuntime.mcpServerAttributions`. */
 	mcpServerAttributions: Map<string, string>;
 	userId?: string;
@@ -785,6 +789,7 @@ export class AgentExecutionOrchestratorService {
 					toolRegistry: runtime.toolRegistry,
 					mcpServerAttributions: runtime.mcpServerAttributions,
 					budget: runtime.budget,
+					toolGuardrails: runtime.toolGuardrails,
 					agentId,
 					message,
 					modelMessage,
@@ -865,6 +870,7 @@ export class AgentExecutionOrchestratorService {
 					toolRegistry: runtime.toolRegistry,
 					mcpServerAttributions: runtime.mcpServerAttributions,
 					budget: runtime.budget,
+					toolGuardrails: runtime.toolGuardrails,
 					agentId,
 					projectId,
 					message,
@@ -925,6 +931,7 @@ export class AgentExecutionOrchestratorService {
 					toolRegistry: runtime.toolRegistry,
 					mcpServerAttributions: runtime.mcpServerAttributions,
 					budget: runtime.budget,
+					toolGuardrails: runtime.toolGuardrails,
 					agentId,
 					message,
 					memory,
@@ -983,6 +990,7 @@ export class AgentExecutionOrchestratorService {
 					toolRegistry: runtime.toolRegistry,
 					mcpServerAttributions: runtime.mcpServerAttributions,
 					budget: runtime.budget,
+					toolGuardrails: runtime.toolGuardrails,
 					agentId,
 					userId: user.id,
 					message,
@@ -1348,16 +1356,19 @@ export class AgentExecutionOrchestratorService {
 		return {
 			type: 'resume',
 			resumeData: config.resumeData,
-			options: withBudgetGuardrail(
-				this.createResumeOptions(config, memoryScope, messageContext, executionSource, tracing),
-				{
-					budget: runtime.budget,
-					sessionId: memoryScope.threadId,
-					agentId: config.agentId,
-					...(config.chatSurface === 'preview' && config.onBudgetNotice
-						? { onNotice: config.onBudgetNotice }
-						: {}),
-				},
+			options: withToolGuardrails(
+				withBudgetGuardrail(
+					this.createResumeOptions(config, memoryScope, messageContext, executionSource, tracing),
+					{
+						budget: runtime.budget,
+						sessionId: memoryScope.threadId,
+						agentId: config.agentId,
+						...(config.chatSurface === 'preview' && config.onBudgetNotice
+							? { onNotice: config.onBudgetNotice }
+							: {}),
+					},
+				),
+				{ toolGuardrails: runtime.toolGuardrails, toolRegistry: runtime.toolRegistry },
 			),
 			recording: this.createResumeRecording(config, checkpoint, runtime, executionSource),
 		};
@@ -1649,6 +1660,7 @@ export class AgentExecutionOrchestratorService {
 			toolRegistry: runtime.toolRegistry,
 			mcpServerAttributions: runtime.mcpServerAttributions,
 			budget: runtime.budget,
+			toolGuardrails: runtime.toolGuardrails,
 			agentId,
 			userId: user.id,
 			message,
@@ -1728,42 +1740,45 @@ export class AgentExecutionOrchestratorService {
 		return {
 			type: 'start',
 			input,
-			options: withBudgetGuardrail(
-				{
-					persistence: { threadId, resourceId, hostMetadata },
-					...(config.pauseReport
-						? {
-								toolsEnabled: false,
-								guardrails: {
-									hooks: [
-										{
-											beforeTool: async () => ({
-												action: 'stop' as const,
-												code: 'background-pause-report',
-											}),
-										},
-									],
-								},
-							}
-						: {}),
-					executionCounter: createAgentExecutionCounter(this.telemetry, {
+			options: withToolGuardrails(
+				withBudgetGuardrail(
+					{
+						persistence: { threadId, resourceId, hostMetadata },
+						...(config.pauseReport
+							? {
+									toolsEnabled: false,
+									guardrails: {
+										hooks: [
+											{
+												beforeTool: async () => ({
+													action: 'stop' as const,
+													code: 'background-pause-report',
+												}),
+											},
+										],
+									},
+								}
+							: {}),
+						executionCounter: createAgentExecutionCounter(this.telemetry, {
+							agentId,
+							userId,
+							runType: telemetry.runType,
+							source,
+						}),
+						...modelStreamStallOptions(this.aiConfig),
+						...(tracing ? { telemetry: tracing } : {}),
+						...(abortSignal ? { abortSignal } : {}),
+					},
+					{
+						budget: config.budget,
+						sessionId: threadId,
 						agentId,
-						userId,
-						runType: telemetry.runType,
-						source,
-					}),
-					...modelStreamStallOptions(this.aiConfig),
-					...(tracing ? { telemetry: tracing } : {}),
-					...(abortSignal ? { abortSignal } : {}),
-				},
-				{
-					budget: config.budget,
-					sessionId: threadId,
-					agentId,
-					...(config.chatSurface === 'preview' && config.onBudgetNotice
-						? { onNotice: config.onBudgetNotice }
-						: {}),
-				},
+						...(config.chatSurface === 'preview' && config.onBudgetNotice
+							? { onNotice: config.onBudgetNotice }
+							: {}),
+					},
+				),
+				{ toolGuardrails: config.toolGuardrails, toolRegistry: config.toolRegistry },
 			),
 			recording: this.createChatRecording(config),
 		};
@@ -1864,6 +1879,7 @@ export class AgentExecutionOrchestratorService {
 			toolRegistry: runtime.toolRegistry,
 			mcpServerAttributions: runtime.mcpServerAttributions,
 			budget: runtime.budget,
+			toolGuardrails: runtime.toolGuardrails,
 			agentId,
 			...(access.ownerId ? { userId: access.ownerId } : {}),
 			message,

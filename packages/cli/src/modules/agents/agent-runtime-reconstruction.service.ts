@@ -23,6 +23,7 @@ import {
 	buildProxyHeaders,
 	isCredentialAgentIntegration,
 	type AgentIntegrationConfig,
+	type AgentToolGuardrailConfig,
 	type BudgetGuardrailConfig,
 	type AgentJsonConfig,
 	type AgentJsonMcpServerConfig,
@@ -127,6 +128,8 @@ export interface ReconstructedAgentRuntime {
 	mcpServerAttributions: Map<string, string>;
 	/** Saved budget config, including a turned-off guardrail. Absent when unset. */
 	budget?: BudgetGuardrailConfig;
+	/** Saved tool guardrail config. Absent when the agent has none. */
+	toolGuardrails?: AgentToolGuardrailConfig[];
 }
 
 export interface SubAgentDelegationConfig {
@@ -709,6 +712,9 @@ export class AgentRuntimeReconstructionService {
 			mcpServerAttributions: runtime.mcpServerAttributions,
 			...(options.config.config?.guardrails?.budget !== undefined
 				? { budget: options.config.config.guardrails.budget }
+				: {}),
+			...(options.config.config?.guardrails?.tools?.length
+				? { toolGuardrails: options.config.config.guardrails.tools }
 				: {}),
 		};
 	}
