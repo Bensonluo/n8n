@@ -950,7 +950,7 @@ describe('InstanceAiService — runtime workspace setup', () => {
 			threadGrantRepo: { findKeys: Mock };
 			evalCredentialAllowlists: EvalThreadCredentialAllowlistService;
 			instanceAiErrorReporter: ReturnType<typeof createInstanceAiErrorReporterMock>;
-			creditService: { claimRunUsage: Mock };
+			creditService: { claimRunUsage: Mock; helperUsageClaimer: Mock };
 			aiUsageService: { isParameterValueSharingAllowed: Mock };
 			areMcpConnectionsAvailable: Mock;
 			skillsService: InstanceAiSkillsService;
@@ -1053,7 +1053,7 @@ describe('InstanceAiService — runtime workspace setup', () => {
 		service.evalCredentialAllowlists = new EvalThreadCredentialAllowlistService();
 		service.instanceAiErrorReporter = createInstanceAiErrorReporterMock();
 		service.aiUsageService = { isParameterValueSharingAllowed: vi.fn(async () => true) };
-		service.creditService = { claimRunUsage: vi.fn() };
+		service.creditService = { claimRunUsage: vi.fn(), helperUsageClaimer: vi.fn(() => vi.fn()) };
 		const sandbox = { id: 'sandbox-1' };
 		const workspace = {
 			init: vi.fn(async () => {}),
@@ -1317,7 +1317,7 @@ describe('InstanceAiService — runtime workspace setup', () => {
 			threadGrantRepo: { findKeys: Mock };
 			evalCredentialAllowlists: EvalThreadCredentialAllowlistService;
 			instanceAiErrorReporter: ReturnType<typeof createInstanceAiErrorReporterMock>;
-			creditService: { claimRunUsage: Mock };
+			creditService: { claimRunUsage: Mock; helperUsageClaimer: Mock };
 			aiUsageService: { isParameterValueSharingAllowed: Mock };
 			areMcpConnectionsAvailable: Mock;
 			skillsService: InstanceAiSkillsService;
@@ -1419,7 +1419,7 @@ describe('InstanceAiService — runtime workspace setup', () => {
 		service.aiUsageService = {
 			isParameterValueSharingAllowed: vi.fn(async () => allowSendingParameterValues),
 		};
-		service.creditService = { claimRunUsage: vi.fn() };
+		service.creditService = { claimRunUsage: vi.fn(), helperUsageClaimer: vi.fn(() => vi.fn()) };
 		(createSandbox as Mock).mockResolvedValue({ id: 'sandbox-1' });
 		(createWorkspace as Mock).mockReturnValue({
 			init: vi.fn(async () => {}),
