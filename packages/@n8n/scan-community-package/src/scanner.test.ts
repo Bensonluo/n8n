@@ -315,7 +315,7 @@ describe('analyzePackage', () => {
 				author: { name: 'Test Author', email: 'test@example.com' },
 				keywords: ['n8n-community-node-package'],
 				peerDependencies: { 'n8n-workflow': '*' },
-				n8n: { n8nNodesApiVersion: '1.1', nodes: ['dist/nodes/Foo/Foo.node.js'] },
+				n8n: { n8nNodesApiVersion: '3.1', nodes: ['dist/nodes/Foo/Foo.node.js'] },
 			},
 			'index.js': 'module.exports = {};\n',
 		});
@@ -335,7 +335,7 @@ describe('analyzePackage', () => {
 				author: { name: 'Test Author', email: 'test@example.com' },
 				keywords: ['n8n-community-node-package'],
 				peerDependencies: { 'n8n-workflow': '*' },
-				n8n: { n8nNodesApiVersion: 1.1, nodes: ['dist/nodes/Foo/Foo.node.js'] },
+				n8n: { n8nNodesApiVersion: 3.1, nodes: ['dist/nodes/Foo/Foo.node.js'] },
 			},
 			'index.js': 'module.exports = {};\n',
 		});

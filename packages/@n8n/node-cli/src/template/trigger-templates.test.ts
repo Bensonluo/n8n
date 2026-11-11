@@ -69,7 +69,7 @@ describe('declarative trigger templates', () => {
 				const packageJsonPath = path.join(tmpdir, 'package.json');
 				const packageJson = JSON.parse(await fs.readFile(packageJsonPath, 'utf-8'));
 				expect(packageJson.n8n).toEqual({
-					n8nNodesApiVersion: '1.1',
+					n8nNodesApiVersion: '3.1',
 					strict: true,
 					credentials: ['dist/credentials/ExampleApi.credentials.js'],
 					nodes: [`dist/nodes/${nodeName}/${nodeName}.node.js`],

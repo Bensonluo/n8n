@@ -30,7 +30,7 @@ _If users need to authenticate with the app/service, provide details here. You s
 
 _State the minimum n8n version, as well as which versions you test against. You can also include any known version incompatibility issues._
 
-This node is a declarative trigger (preview). It needs an n8n version that supports node API version 1.1.
+This node is a declarative trigger (preview). It needs an n8n version that supports node API version 3.1.
 
 ## Usage
 
