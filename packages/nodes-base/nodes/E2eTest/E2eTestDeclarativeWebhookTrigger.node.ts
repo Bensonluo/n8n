@@ -77,7 +77,6 @@ export class E2eTestDeclarativeWebhookTrigger implements INodeType {
 			handler: {
 				handshake: {
 					when: '={{ $webhookRequest.headers["x-hook-secret"] !== undefined }}',
-					store: { hookSecret: '={{ $webhookRequest.headers["x-hook-secret"] }}' },
 					respond: {
 						body: '={{ $webhookRequest.headers["x-hook-secret"] }}',
 						contentType: 'text/plain',

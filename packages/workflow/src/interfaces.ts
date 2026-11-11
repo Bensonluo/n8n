@@ -3084,7 +3084,7 @@ export interface IDeclarativeWebhookTrigger {
 		/** Omit when there is nothing to deregister. */
 		delete?: DeclarativeHookMethod | DeclarativeWebhookDelete;
 	};
-	/** Static-data keys to clear when the webhook is gone. Default: the keys of `create.store` and `handler.handshake.store`. */
+	/** Static-data keys to clear when the webhook is gone. Default: the keys of `create.store`. */
 	managedKeys?: string[];
 	/** Handles each request. Without it, the trigger emits the request body. */
 	handler?: DeclarativeWebhookHandler;
@@ -3094,8 +3094,6 @@ export interface IDeclarativeWebhookTrigger {
 export interface DeclarativeWebhookHandshake {
 	/** On `default`, a truthy result makes the request a handshake. On `setup`, a falsy result replies 401. */
 	when?: string;
-	/** Static data to write from the request. A key that has a value keeps it. */
-	store?: Record<string, string>;
 	respond?: {
 		/** Default `OK`. */
 		body?: string;

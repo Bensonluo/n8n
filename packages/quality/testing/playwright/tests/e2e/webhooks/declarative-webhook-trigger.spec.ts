@@ -79,19 +79,12 @@ test.describe(
 					headers,
 				});
 
-			// A handshake echoes the secret as plain text, stores it and starts no execution.
+			// A handshake echoes the secret as plain text and starts no execution.
 			const handshake = await deliver({}, { 'X-Hook-Secret': 's1' });
 			expect(handshake.status()).toBe(200);
 			expect(await handshake.text()).toBe('s1');
 			expect(handshake.headers()['content-type']).toContain('text/plain');
 			expect(handshake.headers()['x-hook-secret']).toBe('s1');
-			// The server saves the secret before it replies.
-			expect(await readTriggerStaticData(api, workflowId)).toEqual({
-				webhookId: 'h1',
-				hookSecret: 's1',
-			});
-			// A later handshake gets a reply but does not replace the stored secret.
-			expect((await deliver({}, { 'X-Hook-Secret': 's2' })).status()).toBe(200);
 
 			// A ping and an event that the node does not listen to start no execution.
 			const ping = await deliver({ type: 'ping' });
@@ -112,10 +105,6 @@ test.describe(
 			expect(runData[TRIGGER_NODE_NAME][0].data?.main[0]?.map((item) => item.json.body)).toEqual([
 				{ id: 1 },
 			]);
-			expect(await readTriggerStaticData(api, workflowId)).toEqual({
-				webhookId: 'h1',
-				hookSecret: 's1',
-			});
 
 			await api.workflows.deactivate(workflowId);
 
