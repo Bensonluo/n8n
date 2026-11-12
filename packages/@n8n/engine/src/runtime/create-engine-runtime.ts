@@ -20,6 +20,7 @@ import {
 	StepWorker,
 	WaitSweeper,
 } from '../execution';
+import type { StalenessThresholds } from '../execution';
 import {
 	BatchingLifecycleEventPublisher,
 	LifecycleEventPublisherFactory,
@@ -62,6 +63,11 @@ export interface EngineRuntimeOptions {
 	resumeSecret?: string;
 	/** How often to fire waits whose deadline has passed. Defaults to a minute. */
 	waitSweepIntervalMs?: number;
+	/**
+	 * How long a row can stay `queued` or `running` before the engine treats it
+	 * as stuck. Defaults to `DEFAULT_STALENESS_THRESHOLDS`.
+	 */
+	staleness?: StalenessThresholds;
 }
 
 /** A built engine, ready for a host to serve. */
@@ -91,6 +97,7 @@ export function createEngineRuntime({
 	externalDependencies,
 	resumeSecret: givenResumeSecret,
 	waitSweepIntervalMs,
+	staleness,
 }: EngineRuntimeOptions): EngineRuntime {
 	// An empty value is how an unset environment variable usually arrives.
 	const resumeSecret = givenResumeSecret || undefined;
@@ -104,7 +111,7 @@ export function createEngineRuntime({
 
 	const orchestrationQueue = new InMemoryWorkQueue<OrchestrationMessage>(logger);
 	const stepQueue = new InMemoryWorkQueue<StepMessage>(logger);
-	const { executionStore, stepStore, executionViewStore } = createStores(dataSource);
+	const { executionStore, stepStore, executionViewStore } = createStores(dataSource, staleness);
 	// Built once, not per handler: the factory must not run twice.
 	const dependencies =
 		externalDependencies?.({ executionStore, stepStore, executionViewStore }) ?? {};
