@@ -58,6 +58,8 @@ interface IExecutionsBuffer {
 
 interface IApiInvocationProperties {
 	user_id: string;
+	path: string;
+	method: string;
 	route: string;
 	result: PublicApiResult;
 	api_version: string;
