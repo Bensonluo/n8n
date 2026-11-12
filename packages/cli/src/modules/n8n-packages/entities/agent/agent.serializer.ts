@@ -34,6 +34,8 @@ type AgentPackageKeyHandling = {
 	revision: 'exclude';
 	publicationRevision: 'exclude';
 	setupCompletedAt: 'exclude';
+	serviceAccountId: 'exclude';
+	serviceAccount: 'exclude';
 };
 
 const serializePayload = definePackageSerializationPayload<
