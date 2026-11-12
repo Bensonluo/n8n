@@ -56,6 +56,7 @@ import type { TracingContext } from '@/modules/otel/tracing-context';
 import type { McpCallerAuth } from '@n8n/backend-services/auth';
 import type { UserLike } from '@/types/user-like.types';
 import type { PublicApiClient } from '@/public-api/public-api-client';
+import type { PublicApiResult } from '@/public-api/public-api-result';
 
 import type { AiEventMap } from './ai.event-map';
 import type { SurfaceId, TrustedSourceFacets } from '@n8n/inbound-auth';
@@ -512,8 +513,9 @@ export type RelayEventMap = ModuleEventMap & {
 
 	'public-api-invoked': {
 		userId: string;
-		path: string;
-		method: string;
+		/** Route template with the method, e.g. `GET /executions/{executionId}`. */
+		route: string;
+		result: PublicApiResult;
 		apiVersion: string;
 		userAgent?: string;
 		client: PublicApiClient;
